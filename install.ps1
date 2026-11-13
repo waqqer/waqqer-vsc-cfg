@@ -1,6 +1,5 @@
 $ErrorActionPreference = 'Stop'
 
-# Replace this once with the GitHub repository that contains this file.
 $Repository = 'waqqer/waqqer-vsc-cfg'
 $Branch = 'main'
 $RawBase = "https://raw.githubusercontent.com/$Repository/$Branch"
