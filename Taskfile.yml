@@ -6,8 +6,15 @@ tasks:
     cmds:
       - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./update.ps1
     silent: true
+    
   install:
     desc: Update extensions list and settings.json
     cmds:
       - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./install.ps1
+    silent: true
+
+  cinst:
+    desc: Update extensions list and settings.json
+    cmds:
+      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./clean_install.ps1
     silent: true
