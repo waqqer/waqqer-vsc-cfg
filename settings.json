@@ -1,0 +1,93 @@
+{
+    "workbench.iconTheme": "material-icon-theme",
+    "background.editor": {
+        "useFront": false,
+        "style": {
+            "background-position": "100% 0",
+            "background-size": "cover",
+            "opacity": 0.15
+        },
+        "styles": [],
+        "images": [
+            "https://i.pinimg.com/originals/46/1c/ce/461cce21eba7c92d45b65b0ac9b56435.gif"
+        ],
+        "interval": 0,
+        "random": false
+    },
+    "files.autoSave": "afterDelay",
+    "editor.stickyScroll.enabled": false,
+    "editor.unicodeHighlight.nonBasicASCII": false,
+    "workbench.editor.empty.hint": "hidden",
+    "liveServer.settings.donotShowInfoMsg": true,
+    "explorer.confirmDragAndDrop": false,
+    "background.enabled": true,
+    "explorer.confirmDelete": false,
+    "js/ts.updateImportsOnFileMove.enabled": "always",
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false,
+        "javascriptreact": false
+    },
+    "explorer.compactFolders": false,
+    "workbench.secondarySideBar.defaultVisibility": "visible",
+    "editor.inlineSuggest.enabled": true,
+    "typescript.experimental.useTsgo": true,
+    "terminal.integrated.suggest.quickSuggestions": true,
+    "terminal.integrated.shellIntegration.enabled": true,
+    "terminal.integrated.suggest.enabled": true,
+    "terminal.integrated.suggest.providers": {
+        "vscode.terminal-suggest": true,
+        "lsp": false
+    },
+    "workbench.colorTheme": "GitHub Dark Default",
+    "workbench.browser.openLocalhostLinks": false,
+    "indentRainbow.indicatorStyle": "light",
+    "indentRainbow.colors": [
+        "rgba(255,255,64,0.15)",
+        "rgba(127,255,127,0.15)",
+        "rgba(255,127,255,0.15)",
+        "rgba(79,236,236,0.15)"
+    ],
+    "terminal.integrated.initialHint": false,
+    "dart.flutterCreatePlatforms": [
+        "android"
+    ],
+    "background.panel": {
+        "images": [
+            "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/e18a2e01-7ee3-4566-8baa-9985ef4c229a/dfdyp6i-ab331b0d-3a15-4a1a-83ef-a89765f34083.gif?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiIvZi9lMThhMmUwMS03ZWUzLTQ1NjYtOGJhYS05OTg1ZWY0YzIyOWEvZGZkeXA2aS1hYjMzMWIwZC0zYTE1LTRhMWEtODNlZi1hODk3NjVmMzQwODMuZ2lmIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.rUEGsYDZ1tAj7Ma2R_CwF_uBxjo7_JRwwOQyNtp9gP0"
+        ],
+        "opacity": 0.02,
+        "size": "cover",
+        "position": "center",
+        "interval": 0,
+        "random": false
+    },
+    "powermode.combo.location": "off",
+    "powermode.enabled": true,
+    "powermode.shake.enabled": false,
+    "powermode.combo.counterEnabled": "hide",
+    "background.sidebar": {
+        "images": [
+            "https://i.pinimg.com/originals/d9/68/38/d96838caa6877784ff9b59123ba1c4b4.gif"
+        ],
+        "opacity": 0.05,
+        "size": "cover",
+        "position": "center",
+        "styles": [],
+        "interval": 0,
+        "random": false
+    },
+    "editor.minimap.size": "fill",
+    "editor.minimap.showSlider": "always",
+    "editor.minimap.enabled": false,
+    "workbench.experimental.modernUI": false,
+    "git.openRepositoryInParentFolders": "always",
+    "terminal.integrated.allowInUntrustedWorkspace": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "window.menuBarVisibility": "compact",
+    "go.toolsManagement.autoUpdate": true
+}
