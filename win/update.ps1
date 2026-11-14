@@ -7,8 +7,9 @@ if (-not $Code) {
 
 $RepositoryDirectory = $PSScriptRoot
 $SettingsSource = Join-Path $env:APPDATA 'Code\User\settings.json'
-$ExtensionsFile = Join-Path $RepositoryDirectory 'extensions.txt'
-$SettingsDestination = Join-Path $RepositoryDirectory 'settings.json'
+$ConfigDirectory = Join-Path $RepositoryDirectory 'config'
+$ExtensionsFile = Join-Path $ConfigDirectory 'extensions.txt'
+$SettingsDestination = Join-Path $ConfigDirectory 'settings.json'
 
 if (-not (Test-Path -LiteralPath $SettingsSource -PathType Leaf)) {
     throw "VS Code settings file was not found: $SettingsSource"
@@ -22,6 +23,6 @@ if ($LASTEXITCODE -ne 0) {
 $Extensions | Sort-Object -Unique | Set-Content -LiteralPath $ExtensionsFile -Encoding utf8
 Copy-Item -LiteralPath $SettingsSource -Destination $SettingsDestination -Force
 
-Write-Host "Updated extensions.txt with $($Extensions.Count) extensions."
-Write-Host 'Copied the current VS Code settings to settings.json.'
+Write-Host "Updated config/extensions.txt with $($Extensions.Count) extensions."
+Write-Host 'Copied the current VS Code settings to config/settings.json.'
 Write-Host 'Review and commit these changes to publish them to GitHub.'

@@ -15,8 +15,8 @@ New-Item -ItemType Directory -Path $TempDirectory | Out-Null
 try {
     $ExtensionsFile = Join-Path $TempDirectory 'extensions.txt'
     $SettingsFile = Join-Path $TempDirectory 'settings.json'
-    Invoke-WebRequest -Uri "$RawBase/extensions.txt" -OutFile $ExtensionsFile
-    Invoke-WebRequest -Uri "$RawBase/settings.json" -OutFile $SettingsFile
+    Invoke-WebRequest -Uri "$RawBase/config/extensions.txt" -OutFile $ExtensionsFile
+    Invoke-WebRequest -Uri "$RawBase/config/settings.json" -OutFile $SettingsFile
 
     $InstalledExtensions = @(& $Code.Source --list-extensions)
     if ($LASTEXITCODE -ne 0) {
