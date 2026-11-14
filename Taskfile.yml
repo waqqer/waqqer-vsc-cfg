@@ -23,13 +23,16 @@ tasks:
     desc: Install VS Code extensions and settings on Linux
     cmds:
       - bash ./linux/install.sh
+    silent: true
 
   li-clean-install:
     desc: Clean install VS Code extensions and settings on Linux
     cmds:
       - bash ./linux/clean_install.sh
+    silent: true
 
   li-update:
     desc: Update config from Linux VS Code settings
     cmds:
       - bash ./linux/update.sh
+    silent: true
