@@ -1,0 +1,47 @@
+{
+    "workbench.iconTheme": "material-icon-theme",
+    "files.autoSave": "afterDelay",
+    "editor.stickyScroll.enabled": false,
+    "editor.unicodeHighlight.nonBasicASCII": false,
+    "workbench.editor.empty.hint": "hidden",
+    "liveServer.settings.donotShowInfoMsg": true,
+    "explorer.confirmDragAndDrop": false,
+    "explorer.confirmDelete": false,
+    "js/ts.updateImportsOnFileMove.enabled": "always",
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false,
+        "javascriptreact": false
+    },
+    "explorer.compactFolders": false,
+    "workbench.secondarySideBar.defaultVisibility": "visible",
+    "editor.inlineSuggest.enabled": true,
+    "typescript.experimental.useTsgo": true,
+    "terminal.integrated.suggest.quickSuggestions": true,
+    "terminal.integrated.shellIntegration.enabled": true,
+    "terminal.integrated.suggest.enabled": true,
+    "terminal.integrated.suggest.providers": {
+        "vscode.terminal-suggest": true,
+        "lsp": false
+    },
+    "workbench.colorTheme": "GitHub Dark Default",
+    "workbench.browser.openLocalhostLinks": false,
+    "indentRainbow.indicatorStyle": "light",
+    "indentRainbow.colors": [
+        "rgba(255,255,64,0.15)",
+        "rgba(127,255,127,0.15)",
+        "rgba(255,127,255,0.15)",
+        "rgba(79,236,236,0.15)"
+    ],
+    "terminal.integrated.initialHint": false,
+    "editor.minimap.size": "fill",
+    "editor.minimap.showSlider": "always",
+    "editor.minimap.enabled": false,
+    "workbench.experimental.modernUI": false,
+    "git.openRepositoryInParentFolders": "always",
+    "terminal.integrated.allowInUntrustedWorkspace": true,
+    "window.menuBarVisibility": "compact",
+    "go.toolsManagement.autoUpdate": true
+}

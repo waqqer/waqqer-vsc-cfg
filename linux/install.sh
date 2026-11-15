@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_name="${1:-full}"
+if [[ ! "$config_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    printf 'Invalid config name: %s\nUse only letters, numbers, underscores, and hyphens.\n' "$config_name" >&2
+    exit 1
+fi
+
 if [[ "$(uname -s)" != Linux* ]]; then
     printf 'This installer supports Linux only.\n' >&2
     exit 1
@@ -12,8 +18,12 @@ if ! command -v code >/dev/null 2>&1; then
 fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-extensions_file="$script_dir/../config/extensions.txt"
-settings_file="$script_dir/../config/settings.json"
+config_dir="$script_dir/../config"
+if [[ "$config_name" != full ]]; then
+    config_dir="$config_dir/$config_name"
+fi
+extensions_file="$config_dir/extensions.txt"
+settings_file="$config_dir/settings.json"
 
 for file in "$extensions_file" "$settings_file"; do
     if [[ ! -f "$file" ]]; then
