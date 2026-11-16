@@ -6,11 +6,28 @@ fi
 
 set -euo pipefail
 
-config_name="${1:-full}"
-if [[ ! "$config_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    printf 'Invalid config name: %s\nUse only letters, numbers, underscores, and hyphens.\n' "$config_name" >&2
-    exit 1
+if [[ -t 1 ]]; then
+    color_green=$'\033[32m'; color_gray=$'\033[90m'; color_reset=$'\033[0m'
+else
+    color_green=''; color_gray=''; color_reset=''
 fi
+
+config_name=full
+debug=false
+config_set=false
+for argument in "$@"; do
+    case "$argument" in
+        -d|--debug) debug=true ;;
+        *)
+            if [[ "$config_set" == true || ! "$argument" =~ ^[A-Za-z0-9_-]+$ ]]; then
+                printf 'Usage: bash linux/update.sh [profile] [-d|--debug]\n' >&2
+                exit 1
+            fi
+            config_name="$argument"
+            config_set=true
+            ;;
+    esac
+done
 
 if [[ "$(uname -s)" != Linux* ]]; then
     printf 'This script supports Linux only.\n' >&2
@@ -35,8 +52,13 @@ if [[ ! -f "$settings_source" ]]; then
 fi
 
 mkdir -p -- "$config_dir"
+if [[ "$debug" == true ]]; then
+    printf '%sDEBUG%s profile=%s settingsSource=%s config=%s\n' "$color_gray" "$color_reset" "$config_name" "$settings_source" "$config_dir"
+    printf '%sDEBUG%s code --list-extensions | sort -u\n' "$color_gray" "$color_reset"
+fi
 code --list-extensions | LC_ALL=C sort -u > "$config_dir/extensions.txt"
 cp -- "$settings_source" "$config_dir/settings.json"
+if [[ "$debug" == true ]]; then printf '%sDEBUG%s copied settings.json\n' "$color_gray" "$color_reset"; fi
 
-printf 'Updated %s/extensions.txt and copied settings to %s/settings.json.\n' "$config_dir" "$config_dir"
-printf 'Review and commit these changes to publish them to GitHub.\n'
+printf '%sUpdated profile "%s" with extensions and settings.%s\n' "$color_green" "$config_name" "$color_reset"
+printf '%sReview and commit these changes to publish them to GitHub.%s\n' "$color_cyan" "$color_reset"

@@ -12,6 +12,8 @@ Install a named profile such as `lite`:
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1))) -c lite
 ```
 
+Add `-d` to show VS Code CLI commands and detailed output. The clean install and update scripts accept it too.
+
 Clean install removes all installed VS Code extensions and replaces the user settings file. To clean install `lite`, pass `-c lite`:
 
 ```powershell
@@ -36,6 +38,12 @@ Install a named profile such as `lite` by passing its name:
 bash linux/install.sh lite
 ```
 
+Add `-d` to show VS Code CLI commands and detailed output:
+
+```bash
+bash linux/install.sh lite -d
+```
+
 The installer copies settings to `${XDG_CONFIG_HOME:-~/.config}/Code/User/settings.json`.
 
 Clean install removes all installed VS Code extensions and replaces the user settings file. Pass the profile name to clean install that profile:
@@ -44,7 +52,9 @@ Clean install removes all installed VS Code extensions and replaces the user set
 bash linux/clean_install.sh lite
 ```
 
-To save the current VS Code setup into a profile, run `bash linux/update.sh lite`. Omit the profile name to update the full profile.
+Add `-d` to show the VS Code CLI output during clean install: `bash linux/clean_install.sh lite -d`.
+
+To save the current VS Code setup into a profile, run `bash linux/update.sh lite`. Omit the profile name to update the full profile. Add `-d` for detailed output.
 
 ### Adding profiles
 

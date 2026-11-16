@@ -6,11 +6,28 @@ fi
 
 set -euo pipefail
 
-config_name="${1:-full}"
-if [[ ! "$config_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    printf 'Invalid config name: %s\nUse only letters, numbers, underscores, and hyphens.\n' "$config_name" >&2
-    exit 1
+if [[ -t 1 ]]; then
+    color_green=$'\033[32m'; color_yellow=$'\033[33m'; color_gray=$'\033[90m'; color_red=$'\033[31m'; color_reset=$'\033[0m'
+else
+    color_green=''; color_yellow=''; color_gray=''; color_red=''; color_reset=''
 fi
+
+config_name=full
+debug=false
+config_set=false
+for argument in "$@"; do
+    case "$argument" in
+        -d|--debug) debug=true ;;
+        *)
+            if [[ "$config_set" == true || ! "$argument" =~ ^[A-Za-z0-9_-]+$ ]]; then
+                printf 'Usage: bash linux/clean_install.sh [profile] [-d|--debug]\n' >&2
+                exit 1
+            fi
+            config_name="$argument"
+            config_set=true
+            ;;
+    esac
+done
 
 if [[ "$(uname -s)" != Linux* ]]; then
     printf 'This installer supports Linux only.\n' >&2
@@ -34,6 +51,7 @@ for file in "$config_dir/extensions.txt" "$config_dir/settings.json"; do
     fi
 done
 
+if [[ "$debug" == true ]]; then printf '%sDEBUG%s code --list-extensions\n' "$color_gray" "$color_reset"; fi
 installed_extensions="$(code --list-extensions)"
 pending_extensions=()
 if [[ -n "$installed_extensions" ]]; then
@@ -44,24 +62,32 @@ while ((${#pending_extensions[@]} > 0)); do
 
     for extension in "${pending_extensions[@]}"; do
         [[ -z "$extension" ]] && continue
-        printf 'Removing %s\n' "$extension"
-        code --uninstall-extension "$extension" || true
+        printf '\n%sRemove extension %s%s\n' "$color_red" "$extension" "$color_reset"
+        if [[ "$debug" == true ]]; then
+            printf '%sDEBUG%s code --uninstall-extension %s\n' "$color_gray" "$color_reset" "$extension"
+            code --uninstall-extension "$extension" || true
+        else
+            output="$(code --uninstall-extension "$extension" 2>&1)" || true
+        fi
     done
 
+if [[ "$debug" == true ]]; then printf '%sDEBUG%s refreshing installed extension list\n' "$color_gray" "$color_reset"; fi
     installed_extensions="$(code --list-extensions)"
     pending_extensions=()
     if [[ -n "$installed_extensions" ]]; then
         mapfile -t pending_extensions <<< "$installed_extensions"
     fi
-
     if ((${#pending_extensions[@]} > 0)) && [[ "$(printf '%s\n' "${previous_pass[@]}" | LC_ALL=C sort)" == "$(printf '%s\n' "${pending_extensions[@]}" | LC_ALL=C sort)" ]]; then
-        printf 'Unable to remove remaining extensions. They may depend on each other or VS Code rejected uninstall: %s\n' "${pending_extensions[*]}" >&2
+        printf '%sUnable to remove remaining extensions: %s%s\n' "$color_red" "${pending_extensions[*]}" "$color_reset" >&2
         exit 1
     fi
 done
 
 user_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User"
+printf '\n%sApplying profile "%s"%s\n' "$color_yellow" "$config_name" "$color_reset"
 rm -f -- "$user_dir/settings.json"
-bash "$script_dir/install.sh" "$config_name"
+install_args=("$config_name")
+if [[ "$debug" == true ]]; then install_args+=(-d); fi
+bash "$script_dir/install.sh" "${install_args[@]}"
 
-printf 'Clean VS Code installation completed.\n'
+printf '%sClean VS Code installation completed.%s\n' "$color_green" "$color_reset"
