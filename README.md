@@ -9,16 +9,16 @@ irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1
 Install a named profile such as `lite`:
 
 ```powershell
-irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1 -Config lite
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1))) -c lite
 ```
 
-Clean install removes all installed VS Code extensions and replaces the user settings file. To clean install `lite`, pass `-Config lite`:
+Clean install removes all installed VS Code extensions and replaces the user settings file. To clean install `lite`, pass `-c lite`:
 
 ```powershell
-irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/clean_install.ps1 -Config lite
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/clean_install.ps1))) -c lite
 ```
 
-To save the current VS Code setup into a profile, run `win/update.ps1 -Config lite` from the cloned repository. Omit `-Config` to update the full profile.
+To save the current VS Code setup into a profile, run `win/update.ps1 -c lite` from the cloned repository. Omit `-c` to update the full profile.
 
 ## Linux Installation
 
@@ -48,4 +48,4 @@ To save the current VS Code setup into a profile, run `bash linux/update.sh lite
 
 ### Adding profiles
 
-Create a directory under `config/` for each profile, containing `extensions.txt` and `settings.json`. Use the directory name as the `-Config` value on Windows or as the argument on Linux. Profile names may contain letters, numbers, underscores, and hyphens. The `full` profile uses the files directly in `config/`.
+Create a directory under `config/` for each profile, containing `extensions.txt` and `settings.json`. Use the directory name as the `-c` value on Windows or as the argument on Linux. Profile names may contain letters, numbers, underscores, and hyphens. The `full` profile uses the files directly in `config/`.

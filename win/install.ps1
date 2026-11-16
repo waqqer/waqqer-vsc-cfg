@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^[A-Za-z0-9_-]+$')]
-    [string]$Config = 'full'
+    [string]$c = 'full'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 $Repository = 'waqqer/waqqer-vsc-cfg'
 $Branch = 'main'
 $RawBase = "https://raw.githubusercontent.com/$Repository/$Branch"
-$ConfigPath = if ($Config -eq 'full') { 'config' } else { "config/$Config" }
+$ConfigPath = if ($c -eq 'full') { 'config' } else { "config/$c" }
 
 $Code = Get-Command code -ErrorAction SilentlyContinue
 if (-not $Code) {

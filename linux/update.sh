@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'This script requires Bash. Run it with: bash linux/update.sh [profile]\n' >&2
+    exit 2
+fi
+
 set -euo pipefail
 
 config_name="${1:-full}"

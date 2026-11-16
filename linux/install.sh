@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'This script requires Bash. Run it with: bash linux/install.sh [profile]\n' >&2
+    exit 2
+fi
+
 set -euo pipefail
 
 config_name="${1:-full}"
@@ -36,7 +41,10 @@ while IFS= read -r extension || [[ -n "$extension" ]]; do
     extension="${extension%$'\r'}"
     [[ -z "$extension" || "$extension" == \#* ]] && continue
     printf 'Installing %s\n' "$extension"
-    code --install-extension "$extension"
+    if ! code --install-extension "$extension"; then
+        printf 'Failed to install extension "%s". Check the extension ID, Marketplace access, and that "code" is the official VS Code CLI.\n' "$extension" >&2
+        exit 1
+    fi
 done < "$extensions_file"
 
 user_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User"

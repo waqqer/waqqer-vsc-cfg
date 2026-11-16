@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^[A-Za-z0-9_-]+$')]
-    [string]$Config = 'full'
+    [string]$c = 'full'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,8 +13,8 @@ if (-not $Code) {
 $RepositoryDirectory = $PSScriptRoot
 $SettingsSource = Join-Path $env:APPDATA 'Code\User\settings.json'
 $ConfigDirectory = Join-Path $RepositoryDirectory 'config'
-if ($Config -ne 'full') {
-    $ConfigDirectory = Join-Path $ConfigDirectory $Config
+if ($c -ne 'full') {
+    $ConfigDirectory = Join-Path $ConfigDirectory $c
 }
 $null = New-Item -ItemType Directory -Force -Path $ConfigDirectory
 $ExtensionsFile = Join-Path $ConfigDirectory 'extensions.txt'
