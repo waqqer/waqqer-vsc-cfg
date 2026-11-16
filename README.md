@@ -9,7 +9,7 @@ irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1
 Install a named profile such as `lite`:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1))) -c lite
+irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1 -c lite
 ```
 
 Add `-d` to show VS Code CLI commands and detailed output. The clean install and update scripts accept it too.
@@ -17,7 +17,7 @@ Add `-d` to show VS Code CLI commands and detailed output. The clean install and
 Clean install removes all installed VS Code extensions and replaces the user settings file. To clean install `lite`, pass `-c lite`:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/clean_install.ps1))) -c lite
+irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/clean_install.ps1 -c lite
 ```
 
 To save the current VS Code setup into a profile, run `win/update.ps1 -c lite` from the cloned repository. Omit `-c` to update the full profile.
