@@ -29,13 +29,26 @@ try {
         throw 'VS Code failed to list installed extensions; nothing was removed.'
     }
 
-    foreach ($Extension in $InstalledExtensions) {
-        $Extension = $Extension.Trim()
-        if ($Extension) {
+    $PendingExtensions = @($InstalledExtensions | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    while ($PendingExtensions.Count -gt 0) {
+        $PreviousPass = @($PendingExtensions)
+
+        foreach ($Extension in $PendingExtensions) {
             Write-Host "Removing $Extension"
             & $Code.Source --uninstall-extension $Extension
-            if ($LASTEXITCODE -ne 0) {
-                throw "VS Code failed to remove extension: $Extension. Stopping clean install."
+        }
+
+        $StillInstalled = @(& $Code.Source --list-extensions)
+        if ($LASTEXITCODE -ne 0) {
+            throw 'VS Code failed to refresh the installed extensions list.'
+        }
+        $PendingExtensions = @($StillInstalled | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+        if ($PendingExtensions.Count -gt 0) {
+            $PreviousSorted = @($PreviousPass | Sort-Object) -join "`n"
+            $CurrentSorted = @($PendingExtensions | Sort-Object) -join "`n"
+            if ($PreviousSorted -eq $CurrentSorted) {
+                throw "Unable to remove remaining extensions. They may depend on each other or VS Code rejected uninstall: $($PendingExtensions -join ', ')"
             }
         }
     }

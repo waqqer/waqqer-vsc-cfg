@@ -35,11 +35,30 @@ for file in "$config_dir/extensions.txt" "$config_dir/settings.json"; do
 done
 
 installed_extensions="$(code --list-extensions)"
-while IFS= read -r extension; do
-    [[ -z "$extension" ]] && continue
-    printf 'Removing %s\n' "$extension"
-    code --uninstall-extension "$extension"
-done <<< "$installed_extensions"
+pending_extensions=()
+if [[ -n "$installed_extensions" ]]; then
+    mapfile -t pending_extensions <<< "$installed_extensions"
+fi
+while ((${#pending_extensions[@]} > 0)); do
+    previous_pass=("${pending_extensions[@]}")
+
+    for extension in "${pending_extensions[@]}"; do
+        [[ -z "$extension" ]] && continue
+        printf 'Removing %s\n' "$extension"
+        code --uninstall-extension "$extension" || true
+    done
+
+    installed_extensions="$(code --list-extensions)"
+    pending_extensions=()
+    if [[ -n "$installed_extensions" ]]; then
+        mapfile -t pending_extensions <<< "$installed_extensions"
+    fi
+
+    if ((${#pending_extensions[@]} > 0)) && [[ "$(printf '%s\n' "${previous_pass[@]}" | LC_ALL=C sort)" == "$(printf '%s\n' "${pending_extensions[@]}" | LC_ALL=C sort)" ]]; then
+        printf 'Unable to remove remaining extensions. They may depend on each other or VS Code rejected uninstall: %s\n' "${pending_extensions[*]}" >&2
+        exit 1
+    fi
+done
 
 user_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User"
 rm -f -- "$user_dir/settings.json"
