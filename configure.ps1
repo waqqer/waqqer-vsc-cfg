@@ -58,9 +58,15 @@ function Read-Number {
     }
 }
 
+function Clear-MenuScreen {
+    if (-not [Console]::IsOutputRedirected) { Clear-Host }
+}
+
 function Remove-AllExtensions {
-    Write-Host "`nRemoving installed extensions..." -ForegroundColor $script:Yellow
+    Write-Host "`nREMOVE  Installed extensions" -ForegroundColor $script:Yellow
     $pass = 0
+    $waitShown = $false
+    $retryShown = $false
     $removalErrors = @{}
     while ($true) {
         Stop-IfCancelled
@@ -71,13 +77,18 @@ function Remove-AllExtensions {
         if ($current.Count -eq 0) { break }
         $previous = @($current | Sort-Object) -join "`n"
 
-        foreach ($extension in $current) { Write-Host "  $([char]0x2022) Removing $extension" }
+        for ($i = 0; $i -lt $current.Count; $i++) {
+            Write-Host ('  {0} Removing [{1}/{2}] {3}' -f [char]0x2022, ($i + 1), $current.Count, $current[$i]) -ForegroundColor $script:Yellow
+        }
         $batchOrder = @($current)
         [array]::Reverse($batchOrder)
         $batchArguments = @()
         foreach ($extension in $batchOrder) { $batchArguments += @('--uninstall-extension', $extension) }
         if ($script:DebugOutput) { Write-Host "DEBUG: $($script:CodeCli) $($batchArguments -join ' ')" -ForegroundColor $script:Gray }
-        Write-Host 'Waiting...'
+        if (-not $waitShown) {
+            Write-Host "  $([char]0x2022) Waiting for VS Code..." -ForegroundColor $script:Cyan
+            $waitShown = $true
+        }
         $batchResult = Invoke-CodeCapture -Arguments $batchArguments
         if ($script:DebugOutput) { foreach ($line in $batchResult.Output) { if ("$line".Trim()) { Write-Host "  $line" -ForegroundColor $script:Gray } } }
 
@@ -92,7 +103,10 @@ function Remove-AllExtensions {
             continue
         }
 
-        Write-Host 'Waiting...'
+        if (-not $retryShown) {
+            Write-Host "  $([char]0x2022) Retrying dependency-blocked removals..." -ForegroundColor $script:Cyan
+            $retryShown = $true
+        }
         foreach ($extension in $current) {
             Stop-IfCancelled
             if ($script:DebugOutput) { Write-Host "DEBUG: $($script:CodeCli) --uninstall-extension $extension" -ForegroundColor $script:Gray }
@@ -108,7 +122,7 @@ function Remove-AllExtensions {
                     $removalErrors[$extension] = if ($output.Count) { $output -join [Environment]::NewLine } else { "VS Code CLI exited with status $status." }
                     continue
                 }
-                Write-Host "  $([char]0x2022) Already removed: $extension"
+                Write-Host "  $([char]0x2022) Already removed: $extension" -ForegroundColor $script:Green
                 if ($script:DebugOutput) { foreach ($line in $output) { if ("$line".Trim()) { Write-Host "  $line" -ForegroundColor $script:Gray } } }
             } elseif ($script:DebugOutput) {
                 foreach ($line in $output) { if ("$line".Trim()) { Write-Host "  $line" -ForegroundColor $script:Gray } }
@@ -136,17 +150,17 @@ function Remove-AllExtensions {
 function Install-Profile {
     param([switch]$ApplySettings)
     $extensions = @(Get-Content -LiteralPath (Join-Path $script:ConfigDirectory 'extensions.txt') | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })
-    Write-Host "`nInstalling profile '$script:Profile' ($($extensions.Count) extensions)" -ForegroundColor $script:Cyan
+    Write-Host "`nINSTALL  Profile '$script:Profile'  |  $($extensions.Count) extensions" -ForegroundColor $script:Cyan
     for ($i = 0; $i -lt $extensions.Count; $i++) {
         Stop-IfCancelled
         $extension = $extensions[$i]
-        Write-Host ('  {0} Installing [{1}/{2}] {3}' -f [char]0x2022, ($i + 1), $extensions.Count, $extension)
+        Write-Host ('  {0} Installing [{1}/{2}] {3}' -f [char]0x2022, ($i + 1), $extensions.Count, $extension) -ForegroundColor $Green
     }
     $arguments = @()
     foreach ($extension in $extensions) { $arguments += @('--install-extension', $extension) }
     if ($arguments.Count -gt 0) {
         if ($script:DebugOutput) { Write-Host "DEBUG: $($script:CodeCli) $($arguments -join ' ')" -ForegroundColor $script:Gray }
-        Write-Host 'Waiting...'
+        Write-Host "  $([char]0x2022) Waiting for VS Code..." -ForegroundColor $script:Cyan
         $status = Invoke-CodeCli -Arguments $arguments
         if ($status -ne 0) { throw "Failed to install profile '$script:Profile'. VS Code reported one or more extension failures." }
     }
@@ -242,15 +256,21 @@ try {
     if ($PSBoundParameters.ContainsKey('Path')) {
         if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "VS Code directory does not exist: $Path" }
         $CodeRoot = (Resolve-Path -LiteralPath $Path).Path
-        $candidates = @((Join-Path $Path 'Code.exe'), (Join-Path $Path 'bin\code.cmd'), (Join-Path $Path 'bin\code.exe'))
+        $candidates = @((Join-Path $Path 'bin\code.cmd'), (Join-Path $Path 'bin\code.exe'))
         $CodeCli = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-        if (-not $CodeCli) { throw "No VS Code CLI found in '$Path' (expected Code.exe or bin\code.cmd)." }
+        if (-not $CodeCli) { throw "No VS Code CLI found in '$Path' (expected bin\code.cmd or bin\code.exe)." }
     } else {
         $command = Get-Command code -ErrorAction SilentlyContinue
         if (-not $command) { throw 'VS Code CLI "code" was not found on PATH.' }
         $CodeCli = $command.Source
         $CodeDirectory = Split-Path -Parent $CodeCli
         $CodeRoot = if ((Split-Path -Leaf $CodeDirectory) -ieq 'bin') { Split-Path -Parent $CodeDirectory } else { $CodeDirectory }
+        if ([IO.Path]::GetFileName($CodeCli) -ieq 'Code.exe') {
+            $cliDirectory = if ((Split-Path -Leaf $CodeDirectory) -ieq 'bin') { $CodeDirectory } else { Join-Path $CodeDirectory 'bin' }
+            $cliWrapper = Join-Path $cliDirectory 'code.cmd'
+            if (Test-Path -LiteralPath $cliWrapper -PathType Leaf) { $CodeCli = $cliWrapper }
+            else { throw "The command 'code' resolved to the VS Code application, not its CLI. Add '$cliDirectory' to PATH or pass the VS Code installation directory with -p." }
+        }
     }
     if ($DebugOutput) { Write-Host "DEBUG: VS Code CLI: $CodeCli" -ForegroundColor $Gray }
     $script:CodeCli = $CodeCli
@@ -259,20 +279,28 @@ try {
     $script:Red = $Red; $script:Gray = $Gray; $script:Green = $Green; $script:Yellow = $Yellow; $script:Cyan = $Cyan
 
     $profiles = @('full') + @(Get-ChildItem -LiteralPath $ConfigRoot -Directory | Where-Object { (Test-Path (Join-Path $_.FullName 'extensions.txt')) -and (Test-Path (Join-Path $_.FullName 'settings.json')) } | Sort-Object Name | ForEach-Object { $_.Name })
-    Write-Host "`n================ VS Code Configuration ================" -ForegroundColor $Cyan
-    Write-Host '  1. Clean install (remove extensions, then install profile)'
-    Write-Host '  2. Install profile'
-    Write-Host '  3. Delete all extensions'
-    Write-Host '  4. Reset VS Code user data'
-    Write-Host '  5. Update profiles'
+    Write-Host "`n---------------- VS Code Configuration ----------------" -ForegroundColor $Cyan
+    Write-Host '  INSTALL' -ForegroundColor $Green
+    Write-Host '  [1] Clean install  (remove extensions, then install profile)'
+    Write-Host '  [2] Install profile'
+    Write-Host ''
+    Write-Host '  REMOVE' -ForegroundColor $Yellow
+    Write-Host '  [3] Delete all extensions'
+    Write-Host '  [4] Reset VS Code user data'
+    Write-Host ''
+    Write-Host '  OTHER' -ForegroundColor $Cyan
+    Write-Host '  [5] Update profiles'
+    Write-Host '--------------------------------------------------------' -ForegroundColor $Cyan
     $operation = Read-Number 'Select operation [1-5]' 5
+    Clear-MenuScreen
 
     $Profile = 'full'
     if ($operation -eq 1 -or $operation -eq 2) {
-        Write-Host "`nAvailable profiles" -ForegroundColor $Cyan
+        Write-Host "`n------------------ Available profiles -----------------" -ForegroundColor $Cyan
         for ($i = 0; $i -lt $profiles.Count; $i++) { Write-Host ('  {0}. {1}' -f ($i + 1), $profiles[$i]) }
         $profileIndex = Read-Number "Select profile [1-$($profiles.Count)]" $profiles.Count
         $Profile = $profiles[$profileIndex - 1]
+        Clear-MenuScreen
         $ConfigDirectory = if ($Profile -eq 'full') { $ConfigRoot } else { Join-Path $ConfigRoot $Profile }
         foreach ($file in @('extensions.txt', 'settings.json')) { if (-not (Test-Path -LiteralPath (Join-Path $ConfigDirectory $file) -PathType Leaf)) { throw "Profile '$Profile' is missing $file." } }
     }

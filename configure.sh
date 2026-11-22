@@ -59,17 +59,25 @@ choose_number() {
     done
 }
 
-printf '\n%s================ VS Code Configuration ================%s\n' "$cyan" "$reset"
-printf '  1. Clean install (remove extensions, then install profile)\n  2. Install profile\n  3. Delete all extensions\n  4. Reset VS Code user data\n  5. Update profiles\n\n'
+clear_menu_screen() {
+    if [[ -t 1 ]]; then printf '\033[2J\033[H'; fi
+}
+
+printf '\n%s---------------- VS Code Configuration ----------------%s\n' "$cyan" "$reset"
+printf '  %sINSTALL%s\n  [1] Clean install  (remove extensions, then install profile)\n  [2] Install profile\n\n' "$green" "$reset"
+printf '  %sREMOVE%s\n  [3] Delete all extensions\n  [4] Reset VS Code user data\n\n' "$yellow" "$reset"
+printf '  %sOTHER%s\n  [5] Update profiles\n%s--------------------------------------------------------%s\n\n' "$cyan" "$reset" "$cyan" "$reset"
 choose_number 'Select operation [1-5]: ' 5
 operation=$REPLY
+clear_menu_screen
 
 profile='full'
 if [[ "$operation" == 1 || "$operation" == 2 ]]; then
-    printf '\n%sAvailable profiles%s\n' "$cyan" "$reset"
+    printf '\n%s------------------ Available profiles -----------------%s\n' "$cyan" "$reset"
     for i in "${!profiles[@]}"; do printf '  %d. %s\n' "$((i+1))" "${profiles[$i]}"; done
     choose_number "Select profile [1-${#profiles[@]}]: " "${#profiles[@]}"
     profile=${profiles[$((REPLY-1))]}
+    clear_menu_screen
     config_dir="$config_root"
     [[ "$profile" == full ]] || config_dir="$config_root/$profile"
     [[ -f "$config_dir/extensions.txt" && -f "$config_dir/settings.json" ]] || { printf '%sError:%s profile files are missing for "%s".\n' "$red" "$reset" "$profile" >&2; exit 1; }
@@ -88,10 +96,10 @@ run_code() {
 }
 
 remove_all_extensions() {
-    local listing previous ext pass=0 output status installed still_installed i
+    local listing previous ext pass=0 output status installed still_installed i wait_shown=false retry_shown=false
     local -A removal_errors=()
     local -a batch_args=()
-    printf '\n%sRemoving installed extensions...%s\n' "$yellow" "$reset"
+    printf '\n%sREMOVE  Installed extensions%s\n' "$yellow" "$reset"
     while true; do
         if [[ "$debug" == true ]]; then printf '%sDEBUG%s code --list-extensions\n' "$gray" "$reset"; fi
         if ! listing=$("$code_cli" --list-extensions 2>&1); then printf '%sError:%s could not list VS Code extensions.\n%s\n' "$red" "$reset" "$listing" >&2; return 1; fi
@@ -99,8 +107,10 @@ remove_all_extensions() {
         ((${#current[@]})) || break
         previous=$(printf '%s\n' "${current[@]}" | LC_ALL=C sort)
         batch_args=()
+        for ((i=0; i<${#current[@]}; i++)); do
+            printf '  %s\u2022 Removing [%d/%d] %s%s\n' "$yellow" "$((i+1))" "${#current[@]}" "${current[$i]}" "$reset"
+        done
         for ((i=${#current[@]}-1; i>=0; i--)); do
-            printf '  \u2022 Removing %s\n' "${current[$i]}"
             batch_args+=(--uninstall-extension "${current[$i]}")
         done
         if [[ "$debug" == true ]]; then
@@ -108,7 +118,10 @@ remove_all_extensions() {
             printf ' %q' "$code_cli" "${batch_args[@]}"
             printf '\n'
         fi
-        printf 'Waiting...\n'
+        if [[ "$wait_shown" == false ]]; then
+            printf '  %s\u2022 Waiting for VS Code...%s\n' "$cyan" "$reset"
+            wait_shown=true
+        fi
         if output=$("$code_cli" "${batch_args[@]}" 2>&1); then status=0; else status=$?; fi
         [[ "$debug" == true && -n "$output" ]] && printf '%s\n' "$output" | sed "s/^/${gray}  /;s/$/${reset}/"
 
@@ -121,7 +134,10 @@ remove_all_extensions() {
             continue
         fi
 
-        printf 'Waiting...\n'
+        if [[ "$retry_shown" == false ]]; then
+            printf '  %s\u2022 Retrying dependency-blocked removals...%s\n' "$cyan" "$reset"
+            retry_shown=true
+        fi
         for ext in "${current[@]}"; do
             if [[ "$debug" == true ]]; then printf '%sDEBUG%s code --uninstall-extension %s\n' "$gray" "$reset" "$ext"; fi
             if output=$("$code_cli" --uninstall-extension "$ext" 2>&1); then
@@ -133,7 +149,7 @@ remove_all_extensions() {
                     still_installed=false
                     for installed in "${current[@]}"; do [[ "$installed" == "$ext" ]] && still_installed=true; done
                     if [[ "$still_installed" == false ]]; then
-                        printf '  \u2022 Already removed: %s\n' "$ext"
+                        printf '  %s\u2022 Already removed: %s%s\n' "$green" "$ext" "$reset"
                         [[ "$debug" == true && -n "$output" ]] && printf '%s\n' "$output" | sed "s/^/${gray}  /;s/$/${reset}/"
                         continue
                     fi
@@ -203,11 +219,11 @@ install_profile() {
     local apply_settings=${1:-false} ext total=0 index=0 user_dir
     mapfile -t extensions < <(sed 's/\r$//' "$config_dir/extensions.txt" | sed '/^[[:space:]]*$/d; /^[[:space:]]*#/d')
     total=${#extensions[@]}
-    printf '\n%sInstalling profile "%s" (%d extensions)%s\n' "$cyan" "$profile" "$total" "$reset"
+    printf '\n%sINSTALL  Profile "%s"  |  %d extensions%s\n' "$cyan" "$profile" "$total" "$reset"
     local -a install_args=()
     for ext in "${extensions[@]}"; do
         ((index+=1))
-        printf '  \u2022 Installing [%d/%d] %s\n' "$index" "$total" "$ext"
+        printf '  %s\u2022 Installing [%d/%d] %s%s\n' "$green" "$index" "$total" "$ext" "$reset"
         install_args+=(--install-extension "$ext")
     done
     if ((${#install_args[@]})); then
@@ -216,7 +232,7 @@ install_profile() {
             printf ' %q' "$code_cli" "${install_args[@]}"
             printf '\n'
         fi
-        printf 'Waiting...\n'
+        printf '  %s\u2022 Waiting for VS Code...%s\n' "$cyan" "$reset"
         if ! run_code "${install_args[@]}"; then
             printf '%sError:%s VS Code failed to install one or more extensions in profile "%s".\n' "$red" "$reset" "$profile" >&2
             return 1
