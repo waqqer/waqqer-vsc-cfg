@@ -1,61 +1,55 @@
-## Windows Installation
+# VS Code configuration
 
-Install the full profile (the default):
+Interactive setup tool for installing, removing, and updating VS Code extension profiles on Windows and Linux.
 
-```powershell
-irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1 | iex
-```
+## Start
 
-Install a named profile such as `lite`:
+Run the entry point for your operating system from this repository:
 
 ```powershell
-irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/install.ps1 -c lite
+.\configure.ps1
 ```
 
-Add `-d` to show VS Code CLI commands and detailed output. The clean install and update scripts accept it too.
+```bash
+./configure.sh
+```
 
-Clean install removes all installed VS Code extensions and replaces the user settings file. To clean install `lite`, pass `-c lite`:
+The menu offers clean install, install a profile, delete all extensions, reset VS Code user data, and update profiles. Profiles are read from `config/`: `full` uses the files directly in that directory; named profiles use subdirectories such as `config/lite/`.
+
+Clean install applies both the selected extensions and `settings.json`. Install adds the selected extensions and leaves the current user settings unchanged.
+
+Reset VS Code removes the standard user data and extension directories, or the portable installation's `data/user-data` and `data/extensions` directories. It requires typing `RESET` to confirm, and leaves the VS Code application and project files in place. Close VS Code and run the reset from an external terminal.
+
+## Options
+
+`-d` prints VS Code CLI details while installing or removing extensions:
 
 ```powershell
-irm https://raw.githubusercontent.com/waqqer/waqqer-vsc-cfg/main/win/clean_install.ps1 -c lite
+.\configure.ps1 -d
 ```
-
-To save the current VS Code setup into a profile, run `win/update.ps1 -c lite` from the cloned repository. Omit `-c` to update the full profile.
-
-## Linux Installation
-
-The VS Code `code` command must be available on `PATH`. Clone the repository and install the full profile (the default):
 
 ```bash
-git clone https://github.com/waqqer/waqqer-vsc-cfg.git
-cd waqqer-vsc-cfg
-bash linux/install.sh
+./configure.sh -d
 ```
 
-Install a named profile such as `lite` by passing its name:
+`-p` selects a VS Code installation directory instead of using `code` from `PATH`. Combine it with `-d` as needed:
+
+```powershell
+.\configure.ps1 -p "D:\Programs\Microsoft VS Code" -d
+```
 
 ```bash
-bash linux/install.sh lite
+./configure.sh -p "/opt/vscode" -d
 ```
 
-Add `-d` to show VS Code CLI commands and detailed output:
+Windows paths must contain `Code.exe` or `bin\code.cmd`; Linux paths must contain an executable `bin/code` or `code`.
 
-```bash
-bash linux/install.sh lite -d
-```
+## Profiles
 
-The installer copies settings to `${XDG_CONFIG_HOME:-~/.config}/Code/User/settings.json`.
+Each profile contains `extensions.txt` and `settings.json`. Add a directory under `config/` with those files to make another profile available in the menu. The `full` profile uses `config/extensions.txt` and `config/settings.json`.
 
-Clean install removes all installed VS Code extensions and replaces the user settings file. Pass the profile name to clean install that profile:
+The update operation saves the current VS Code extension list and settings to the full profile. Review the changes before committing them.
 
-```bash
-bash linux/clean_install.sh lite
-```
+## Legacy scripts
 
-Add `-d` to show the VS Code CLI output during clean install: `bash linux/clean_install.sh lite -d`.
-
-To save the current VS Code setup into a profile, run `bash linux/update.sh lite`. Omit the profile name to update the full profile. Add `-d` for detailed output.
-
-### Adding profiles
-
-Create a directory under `config/` for each profile, containing `extensions.txt` and `settings.json`. Use the directory name as the `-c` value on Windows or as the argument on Linux. Profile names may contain letters, numbers, underscores, and hyphens. The `full` profile uses the files directly in `config/`.
+The original scripts under `win/` and `linux/` remain available for existing workflows. New usage should start through `configure.ps1` or `configure.sh`.

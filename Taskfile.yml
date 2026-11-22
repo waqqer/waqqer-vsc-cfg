@@ -2,37 +2,37 @@ version: '3'
 
 tasks:
   update:
-    desc: Update extensions.txt and settings.json
+    desc: Open the VS Code configuration menu
     cmds:
-      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./win/update.ps1
+      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./configure.ps1
     silent: true
     
   install:
-    desc: Install VS Code extensions and settings
+    desc: Open the VS Code configuration menu
     cmds:
-      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./win/install.ps1
+      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./configure.ps1
     silent: true
 
   cinst:
-    desc: Clean install VS Code extensions and settings
+    desc: Open the VS Code configuration menu
     cmds:
-      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./win/clean_install.ps1
+      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./configure.ps1
     silent: true
 
   li-install:
-    desc: Install VS Code extensions and settings on Linux
+    desc: Open the VS Code configuration menu on Linux
     cmds:
-      - bash ./linux/install.sh
+      - bash ./configure.sh
     silent: true
 
   li-clean-install:
-    desc: Clean install VS Code extensions and settings on Linux
+    desc: Open the VS Code configuration menu on Linux
     cmds:
-      - bash ./linux/clean_install.sh
+      - bash ./configure.sh
     silent: true
 
   li-update:
-    desc: Update config from Linux VS Code settings
+    desc: Open the VS Code configuration menu on Linux
     cmds:
-      - bash ./linux/update.sh
+      - bash ./configure.sh
     silent: true
