@@ -62,6 +62,148 @@ function Clear-MenuScreen {
     if (-not [Console]::IsOutputRedirected) { Clear-Host }
 }
 
+function Get-ProfileNames {
+    $namedProfiles = @(Get-ChildItem -LiteralPath $script:ConfigRoot -Directory | Where-Object {
+        $_.Name -ine 'full' -and
+        (Test-Path -LiteralPath (Join-Path $_.FullName 'extensions.txt') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $_.FullName 'settings.json') -PathType Leaf)
+    } | Sort-Object Name | ForEach-Object { $_.Name })
+    return @('full') + $namedProfiles
+}
+
+function Assert-LocalRepository {
+    if ((Get-Variable PSSenderInfo -ErrorAction SilentlyContinue) -or $env:SSH_CONNECTION -or $env:SSH_CLIENT -or $env:SSH_TTY) {
+        throw 'Update profiles is available only from a local PowerShell session.'
+    }
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    $gitExecutable = if ($git) { if ($git.Source) { $git.Source } else { $git.Name } } else { $null }
+    if (-not $gitExecutable) {
+        $gitCandidates = @(
+            (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
+            (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
+        )
+        $gitExecutable = $gitCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    }
+    if (-not $gitExecutable) { throw 'Update profiles requires a local Git clone with a configured remote.' }
+    $repositoryRoot = @(& $gitExecutable -C $script:ScriptDirectory rev-parse --show-toplevel 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $repositoryRoot.Count -eq 0) { throw 'Update profiles requires a local Git clone with a configured remote.' }
+    $repositoryRoot = (Resolve-Path -LiteralPath $repositoryRoot[0]).Path
+    if ($repositoryRoot -ine (Resolve-Path -LiteralPath $script:ScriptDirectory).Path) { throw 'Update profiles must be run from the root of the cloned project.' }
+    $remotes = @(& $gitExecutable -C $script:ScriptDirectory remote -v 2>$null | Where-Object { "$($_)".Trim() })
+    if ($LASTEXITCODE -ne 0 -or $remotes.Count -eq 0) { throw 'Update profiles requires a configured Git remote.' }
+}
+
+function Read-NewProfileName {
+    while ($true) {
+        $name = Read-Host 'New profile name (letters, numbers, - and _)'
+        if ($null -eq $name) { throw [System.OperationCanceledException]::new('Cancelled by user.') }
+        if ($name -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]*$') {
+            Write-Host 'Use a name starting with a letter or number, followed by letters, numbers, - or _.' -ForegroundColor $script:Red
+            continue
+        }
+        if ($name -ieq 'full') {
+            Write-Host 'The name "full" is reserved for the default profile.' -ForegroundColor $script:Red
+            continue
+        }
+        $duplicate = @(Get-ChildItem -LiteralPath $script:ConfigRoot -Directory | Where-Object { $_.Name -ieq $name }).Count -gt 0
+        if ($duplicate -or (Test-Path -LiteralPath (Join-Path $script:ConfigRoot $name))) {
+            Write-Host "Profile '$name' already exists." -ForegroundColor $script:Red
+            continue
+        }
+        return $name
+    }
+}
+
+function Save-CurrentProfile {
+    param([string]$ProfileName, [switch]$Create)
+    $settingsSource = Join-Path $env:APPDATA 'Code\User\settings.json'
+    if (-not (Test-Path -LiteralPath $settingsSource -PathType Leaf)) { throw "VS Code settings not found: $settingsSource" }
+
+    $targetDirectory = if ($ProfileName -ieq 'full') { $script:ConfigRoot } else { Join-Path $script:ConfigRoot $ProfileName }
+    if ($Create) {
+        if ($ProfileName -ieq 'full' -or (Test-Path -LiteralPath $targetDirectory)) { throw "Profile '$ProfileName' already exists." }
+    } else {
+        foreach ($file in @('extensions.txt', 'settings.json')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $targetDirectory $file) -PathType Leaf)) { throw "Profile '$ProfileName' is missing $file." }
+        }
+    }
+
+    $tempDirectory = Join-Path $script:ConfigRoot ('.profile-' + [guid]::NewGuid().ToString('N'))
+    $targetCreated = $false
+    $backupsReady = $false
+    try {
+        New-Item -ItemType Directory -Path $tempDirectory -ErrorAction Stop | Out-Null
+        $tempExtensions = Join-Path $tempDirectory 'extensions.txt'
+        $tempSettings = Join-Path $tempDirectory 'settings.json'
+        $backupExtensions = Join-Path $tempDirectory 'extensions.bak'
+        $backupSettings = Join-Path $tempDirectory 'settings.bak'
+
+        $installed = @(& $script:CodeCli --list-extensions 2>&1)
+        if ($LASTEXITCODE -ne 0) { throw "Failed to read installed extensions: $($installed -join ' ')" }
+        $profileExtensions = @($installed | ForEach-Object { "$($_)".Trim() } | Where-Object { $_ -match '^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$' } | Sort-Object -Unique)
+        if ($profileExtensions.Count -gt 0) { $profileExtensions | Set-Content -LiteralPath $tempExtensions -Encoding utf8 }
+        else { New-Item -ItemType File -Path $tempExtensions -ErrorAction Stop | Out-Null }
+        Copy-Item -LiteralPath $settingsSource -Destination $tempSettings -ErrorAction Stop
+
+        if ($Create) {
+            New-Item -ItemType Directory -Path $targetDirectory -ErrorAction Stop | Out-Null
+            $targetCreated = $true
+        } else {
+            Copy-Item -LiteralPath (Join-Path $targetDirectory 'extensions.txt') -Destination $backupExtensions -ErrorAction Stop
+            Copy-Item -LiteralPath (Join-Path $targetDirectory 'settings.json') -Destination $backupSettings -ErrorAction Stop
+            $backupsReady = $true
+        }
+
+        Move-Item -LiteralPath $tempExtensions -Destination (Join-Path $targetDirectory 'extensions.txt') -Force -ErrorAction Stop
+        Move-Item -LiteralPath $tempSettings -Destination (Join-Path $targetDirectory 'settings.json') -Force -ErrorAction Stop
+    } catch {
+        $saveError = $_.Exception.Message
+        try {
+            if ($targetCreated) {
+                Remove-Item -LiteralPath (Join-Path $targetDirectory 'extensions.txt'), (Join-Path $targetDirectory 'settings.json') -Force -ErrorAction SilentlyContinue
+                if (@(Get-ChildItem -LiteralPath $targetDirectory -Force -ErrorAction SilentlyContinue).Count -eq 0) { Remove-Item -LiteralPath $targetDirectory -Force -ErrorAction SilentlyContinue }
+            } elseif ($backupsReady) {
+                Copy-Item -LiteralPath $backupExtensions -Destination (Join-Path $targetDirectory 'extensions.txt') -Force -ErrorAction Stop
+                Copy-Item -LiteralPath $backupSettings -Destination (Join-Path $targetDirectory 'settings.json') -Force -ErrorAction Stop
+            }
+        } catch { $saveError += " Rollback failed: $($_.Exception.Message)" }
+        throw "Could not save profile '$ProfileName': $saveError"
+    } finally {
+        Remove-Item -LiteralPath $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $verb = if ($Create) { 'Created' } else { 'Updated' }
+    Write-Host "$verb profile '$ProfileName' with current extensions and settings." -ForegroundColor $script:Green
+}
+
+function Update-Profiles {
+    Assert-LocalRepository
+    Write-Host "`n-------------------- Update profiles -------------------" -ForegroundColor $script:Cyan
+    Write-Host '  [1] Create new profile'
+    Write-Host '  [2] Update profile'
+    Write-Host '  [3] Update default'
+    $action = Read-Number 'Select action [1-3]' 3
+    Clear-MenuScreen
+
+    switch ($action) {
+        1 {
+            $name = Read-NewProfileName
+            Save-CurrentProfile -ProfileName $name -Create
+        }
+        2 {
+            $profiles = Get-ProfileNames
+            Write-Host "`n------------------ Available profiles -----------------" -ForegroundColor $script:Cyan
+            for ($i = 0; $i -lt $profiles.Count; $i++) {
+                $label = if ($profiles[$i] -ieq 'full') { 'full (default)' } else { $profiles[$i] }
+                Write-Host ('  {0}. {1}' -f ($i + 1), $label)
+            }
+            $profileIndex = Read-Number "Select profile [1-$($profiles.Count)]" $profiles.Count
+            Clear-MenuScreen
+            Save-CurrentProfile -ProfileName $profiles[$profileIndex - 1]
+        }
+        3 { Save-CurrentProfile -ProfileName 'full' }
+    }
+}
+
 function Remove-AllExtensions {
     Write-Host "`nREMOVE  Installed extensions" -ForegroundColor $script:Yellow
     $pass = 0
@@ -278,7 +420,7 @@ try {
     $script:DebugOutput = [bool]$DebugOutput
     $script:Red = $Red; $script:Gray = $Gray; $script:Green = $Green; $script:Yellow = $Yellow; $script:Cyan = $Cyan
 
-    $profiles = @('full') + @(Get-ChildItem -LiteralPath $ConfigRoot -Directory | Where-Object { (Test-Path (Join-Path $_.FullName 'extensions.txt')) -and (Test-Path (Join-Path $_.FullName 'settings.json')) } | Sort-Object Name | ForEach-Object { $_.Name })
+    $profiles = Get-ProfileNames
     Write-Host "`n---------------- VS Code Configuration ----------------" -ForegroundColor $Cyan
     Write-Host '  INSTALL' -ForegroundColor $Green
     Write-Host '  [1] Clean install  (remove extensions, then install profile)'
@@ -312,23 +454,7 @@ try {
         2 { Install-Profile }
         3 { Remove-AllExtensions }
         4 { Reset-VSCode }
-        5 {
-            $settingsSource = Join-Path $env:APPDATA 'Code\User\settings.json'
-            if (-not (Test-Path -LiteralPath $settingsSource -PathType Leaf)) { throw "VS Code settings not found: $settingsSource" }
-            $target = $ConfigRoot
-            New-Item -ItemType Directory -Force -Path $target | Out-Null
-            $tempExtensions = Join-Path $target ('.extensions-' + [guid]::NewGuid().ToString('N') + '.tmp')
-            $tempSettings = Join-Path $target ('.settings-' + [guid]::NewGuid().ToString('N') + '.tmp')
-            try {
-                $installed = @(& $CodeCli --list-extensions 2>&1)
-                if ($LASTEXITCODE -ne 0) { throw "Failed to read installed extensions: $($installed -join ' ')" }
-                @($installed | ForEach-Object { "$($_)".Trim() } | Where-Object { $_ -match '^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$' } | Sort-Object -Unique) | Set-Content -LiteralPath $tempExtensions -Encoding utf8
-                Copy-Item -LiteralPath $settingsSource -Destination $tempSettings
-                Move-Item -LiteralPath $tempExtensions -Destination (Join-Path $target 'extensions.txt') -Force
-                Move-Item -LiteralPath $tempSettings -Destination (Join-Path $target 'settings.json') -Force
-            } finally { Remove-Item -LiteralPath $tempExtensions, $tempSettings -Force -ErrorAction SilentlyContinue }
-            Write-Host 'Updated profile "full" with current extensions and settings.' -ForegroundColor $Green
-        }
+        5 { Update-Profiles }
     }
 } catch [System.OperationCanceledException] {
     Write-Host "`nCancelled. No success was reported." -ForegroundColor $Yellow

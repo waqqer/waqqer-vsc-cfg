@@ -14,7 +14,7 @@ Run the entry point for your operating system from this repository:
 ./configure.sh
 ```
 
-The menu offers clean install, install a profile, delete all extensions, reset VS Code user data, and update profiles. Profiles are read from `config/`: `full` uses the files directly in that directory; named profiles use subdirectories such as `config/lite/`.
+The menu offers clean install, install a profile, delete all extensions, reset VS Code user data, and profile management. Profiles are read from `config/`: `full` uses the files directly in that directory; named profiles use subdirectories such as `config/lite/`.
 
 Clean install applies both the selected extensions and `settings.json`. Install adds the selected extensions and leaves the current user settings unchanged.
 
@@ -47,9 +47,4 @@ Windows paths must contain `Code.exe` or `bin\code.cmd`; Linux paths must contai
 ## Profiles
 
 Each profile contains `extensions.txt` and `settings.json`. Add a directory under `config/` with those files to make another profile available in the menu. The `full` profile uses `config/extensions.txt` and `config/settings.json`.
-
-The update operation saves the current VS Code extension list and settings to the full profile. Review the changes before committing them.
-
-## Legacy scripts
-
-The original scripts under `win/` and `linux/` remain available for existing workflows. New usage should start through `configure.ps1` or `configure.sh`.
+Each profile contains `extensions.txt` and `settings.json`. Add a directory under `config/` with those files to make another profile available in the menu. The `full` profile uses `config/extensions.txt` and `config/settings.json`.

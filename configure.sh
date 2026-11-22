@@ -45,7 +45,7 @@ if [[ "$debug" == true ]]; then printf '%sDEBUG%s VS Code CLI: %s\n' "$gray" "$r
 profiles=(full)
 while IFS= read -r -d '' dir; do
     name="${dir##*/}"
-    [[ -f "$dir/extensions.txt" && -f "$dir/settings.json" ]] && profiles+=("$name")
+    [[ "${name,,}" != full && -f "$dir/extensions.txt" && -f "$dir/settings.json" ]] && profiles+=("$name")
 done < <(find "$config_root" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 
 choose_number() {
@@ -248,17 +248,157 @@ install_profile() {
     fi
 }
 
-update_profile() {
-    local settings_source="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User/settings.json" target="$config_root" temp_ext temp_settings
+assert_local_repository() {
+    if [[ -n "${SSH_CONNECTION:-}${SSH_CLIENT:-}${SSH_TTY:-}" ]]; then
+        printf '%sError:%s Update profiles is available only from a local session.\n' "$red" "$reset" >&2
+        return 1
+    fi
+    command -v git >/dev/null 2>&1 || { printf '%sError:%s Update profiles requires a local Git clone with a configured remote.\n' "$red" "$reset" >&2; return 1; }
+    local repository_root script_root remotes
+    repository_root=$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null) || { printf '%sError:%s Update profiles requires a local Git clone with a configured remote.\n' "$red" "$reset" >&2; return 1; }
+    repository_root=$(cd -- "$repository_root" && pwd -P) || return 1
+    script_root=$(cd -- "$script_dir" && pwd -P) || return 1
+    [[ "$repository_root" == "$script_root" ]] || { printf '%sError:%s Update profiles must be run from the root of the cloned project.\n' "$red" "$reset" >&2; return 1; }
+    remotes=$(git -C "$script_dir" remote -v 2>/dev/null) || { printf '%sError:%s could not inspect Git remotes.\n' "$red" "$reset" >&2; return 1; }
+    [[ -n "$remotes" ]] || { printf '%sError:%s Update profiles requires a configured Git remote.\n' "$red" "$reset" >&2; return 1; }
+}
+
+refresh_profiles() {
+    local dir name
+    profiles=(full)
+    while IFS= read -r -d '' dir; do
+        name="${dir##*/}"
+        [[ "${name,,}" != full && -f "$dir/extensions.txt" && -f "$dir/settings.json" ]] && profiles+=("$name")
+    done < <(find "$config_root" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+}
+
+read_new_profile_name() {
+    local name directory existing profile_path
+    while true; do
+        if ! IFS= read -r -p 'New profile name (letters, numbers, - and _): ' name; then
+            printf '\n%sCancelled.%s\n' "$yellow" "$reset"
+            return 130
+        fi
+        if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+            printf '%sInvalid name.%s Start with a letter or number; use only letters, numbers, - and _.\n' "$red" "$reset"
+            continue
+        fi
+        if [[ "${name,,}" == full ]]; then
+            printf '%sInvalid name.%s "full" is reserved for the default profile.\n' "$red" "$reset"
+            continue
+        fi
+        directory="$config_root/$name"
+        if [[ -e "$directory" ]]; then
+            printf '%sProfile already exists:%s %s\n' "$red" "$reset" "$name"
+            continue
+        fi
+        for profile_path in "$config_root"/*/; do
+            [[ -d "$profile_path" ]] || continue
+            existing="${profile_path%/}"
+            existing="${existing##*/}"
+            if [[ "${existing,,}" == "${name,,}" ]]; then
+                printf '%sProfile already exists:%s %s\n' "$red" "$reset" "$existing"
+                continue 2
+            fi
+        done
+        REPLY=$name
+        return 0
+    done
+}
+
+save_current_profile() {
+    local profile_name=$1 mode=$2 target settings_source="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User/settings.json"
+    local temp_dir temp_raw temp_ext temp_settings backup_ext backup_settings created=false backups_ready=false
+    if [[ "$profile_name" == full ]]; then target="$config_root"; else target="$config_root/$profile_name"; fi
+    if [[ "$mode" == create ]]; then
+        [[ "$profile_name" != full && ! -e "$target" ]] || { printf '%sError:%s profile already exists: %s\n' "$red" "$reset" "$profile_name" >&2; return 1; }
+    else
+        [[ -f "$target/extensions.txt" && -f "$target/settings.json" ]] || { printf '%sError:%s profile files are missing for "%s".\n' "$red" "$reset" "$profile_name" >&2; return 1; }
+    fi
     [[ -f "$settings_source" ]] || { printf '%sError:%s VS Code settings not found: %s\n' "$red" "$reset" "$settings_source" >&2; return 1; }
-    if [[ "$profile" != full ]]; then target="$config_root/$profile"; fi
-    mkdir -p -- "$target" || return 1
-    temp_ext=$(mktemp "$target/.extensions.XXXXXX")
-    temp_settings=$(mktemp "$target/.settings.XXXXXX")
-    if ! "$code_cli" --list-extensions | LC_ALL=C sort -u > "$temp_ext"; then rm -f -- "$temp_ext" "$temp_settings"; printf '%sError:%s failed to read installed extensions.\n' "$red" "$reset" >&2; return 1; fi
-    if ! cp -- "$settings_source" "$temp_settings"; then rm -f -- "$temp_ext" "$temp_settings"; printf '%sError:%s failed to read current settings.\n' "$red" "$reset" >&2; return 1; fi
-    mv -f -- "$temp_ext" "$target/extensions.txt" && mv -f -- "$temp_settings" "$target/settings.json" || { rm -f -- "$temp_ext" "$temp_settings"; printf '%sError:%s failed to save the profile.\n' "$red" "$reset" >&2; return 1; }
-    printf '%sUpdated profile "%s" with current extensions and settings.%s\n' "$green" "$profile" "$reset"
+
+    temp_dir=$(mktemp -d "$config_root/.profile.XXXXXX") || { printf '%sError:%s could not create temporary profile files.\n' "$red" "$reset" >&2; return 1; }
+    temp_raw="$temp_dir/current-extensions.txt"
+    temp_ext="$temp_dir/extensions.txt"
+    temp_settings="$temp_dir/settings.json"
+    backup_ext="$temp_dir/extensions.bak"
+    backup_settings="$temp_dir/settings.bak"
+    if ! "$code_cli" --list-extensions > "$temp_raw" 2>&1; then
+        cat -- "$temp_raw" >&2
+        rm -rf -- "$temp_dir"
+        printf '%sError:%s failed to read installed extensions.\n' "$red" "$reset" >&2
+        return 1
+    fi
+    if ! awk '/^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$/' "$temp_raw" | LC_ALL=C sort -u > "$temp_ext"; then
+        rm -rf -- "$temp_dir"
+        printf '%sError:%s failed to prepare the extension list.\n' "$red" "$reset" >&2
+        return 1
+    fi
+    if ! cp -- "$settings_source" "$temp_settings"; then
+        rm -rf -- "$temp_dir"
+        printf '%sError:%s failed to read current settings.\n' "$red" "$reset" >&2
+        return 1
+    fi
+
+    if [[ "$mode" == create ]]; then
+        if ! mkdir -- "$target"; then rm -rf -- "$temp_dir"; printf '%sError:%s could not create profile "%s".\n' "$red" "$reset" "$profile_name" >&2; return 1; fi
+        created=true
+    else
+        if ! cp -p -- "$target/extensions.txt" "$backup_ext" || ! cp -p -- "$target/settings.json" "$backup_settings"; then
+            rm -rf -- "$temp_dir"
+            printf '%sError:%s could not prepare profile rollback files.\n' "$red" "$reset" >&2
+            return 1
+        fi
+        backups_ready=true
+    fi
+
+    if mv -f -- "$temp_ext" "$target/extensions.txt" && mv -f -- "$temp_settings" "$target/settings.json"; then
+        rm -rf -- "$temp_dir"
+        if [[ "$mode" == create ]]; then printf '%sCreated profile "%s" with current extensions and settings.%s\n' "$green" "$profile_name" "$reset"
+        else printf '%sUpdated profile "%s" with current extensions and settings.%s\n' "$green" "$profile_name" "$reset"; fi
+        return 0
+    fi
+
+    local rollback_error=''
+    if [[ "$created" == true ]]; then
+        rm -f -- "$target/extensions.txt" "$target/settings.json" || rollback_error='Could not remove partial profile files.'
+        rmdir -- "$target" 2>/dev/null || rollback_error='Could not remove the incomplete profile directory.'
+    elif [[ "$backups_ready" == true ]]; then
+        cp -p -- "$backup_ext" "$target/extensions.txt" && cp -p -- "$backup_settings" "$target/settings.json" || rollback_error='Could not restore the previous profile files.'
+    fi
+    rm -rf -- "$temp_dir"
+    printf '%sError:%s failed to save profile "%s".%s\n' "$red" "$reset" "$profile_name" "${rollback_error:+ $rollback_error}" >&2
+    return 1
+}
+
+update_profiles() {
+    assert_local_repository || return 1
+    printf '\n%s-------------------- Update profiles -------------------%s\n' "$cyan" "$reset"
+    printf '  [1] Create new profile\n  [2] Update profile\n  [3] Update default\n'
+    choose_number 'Select action [1-3]: ' 3
+    local action=$REPLY profile_name profile_index
+    clear_menu_screen
+    case "$action" in
+        1)
+            read_new_profile_name || return $?
+            profile_name=$REPLY
+            clear_menu_screen
+            save_current_profile "$profile_name" create
+            ;;
+        2)
+            refresh_profiles
+            printf '\n%s------------------ Available profiles -----------------%s\n' "$cyan" "$reset"
+            for i in "${!profiles[@]}"; do
+                if [[ "${profiles[$i]}" == full ]]; then printf '  %d. full (default)\n' "$((i+1))"
+                else printf '  %d. %s\n' "$((i+1))" "${profiles[$i]}"; fi
+            done
+            choose_number "Select profile [1-${#profiles[@]}]: " "${#profiles[@]}"
+            profile_name=${profiles[$((REPLY-1))]}
+            clear_menu_screen
+            save_current_profile "$profile_name" update
+            ;;
+        3) save_current_profile full update ;;
+    esac
 }
 
 case "$operation" in
@@ -266,5 +406,5 @@ case "$operation" in
     2) install_profile false ;;
     3) remove_all_extensions ;;
     4) reset_vscode ;;
-    5) update_profile ;;
+    5) update_profiles ;;
 esac
